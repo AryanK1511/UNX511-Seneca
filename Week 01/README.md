@@ -79,3 +79,28 @@ make clean
 ```
 
 This will execute the `clean` rule, which removes intermediate files and the final executable.
+
+## Linux file system
+
+- `/bin` is the directory that contains binaries, that is, some of the applications and programs you can run.
+- The `/boot` directory contains files required for starting your system.
+- `/dev` contains device files. Many of these are generated at boot time or even on the fly. For example, if you plug in a new webcam or a USB pendrive into your machine, a new device entry will automagically pop up here.
+- `/etc` is the directory where names start to get confusing. /etc gets its name from the earliest Unixes and it was literally "et cetera" because it was the dumping ground for system files administrators were not sure where else to put. Nowadays, it would be more appropriate to say that etc stands for "Everything to configure," as it contains most, if not all system-wide configuration files.
+- `/lib` is where libraries live. Libraries are files containing code that your applications can use.
+- The `/media` directory is where external storage will be automatically mounted when you plug it in and try to access it.
+- The `/mnt` directory is where you would manually mount storage devices or partitions.
+- The `/opt` directory is often where software you compile (that is, you build yourself from source code and do not install from your distribution repositories) sometimes lands. Applications will end up in the `/opt/bin` directory and libraries in the `/opt/lib` directory. A slight digression: another place where applications and libraries end up in is `/usr/local`.
+- `/proc`, like /dev is a virtual directory. It contains information about your computer, such as information about your CPU and the kernel your Linux system is running.
+- `/root` is the home directory of the superuser (also known as the "Administrator") of the system.
+- `/run` is another new directory. System processes use it to store temporary data for their own nefarious reasons.
+- `/sbin` is similar to `/bin`, but it contains applications that only the superuser (hence the initial s) will need. You can use these applications with the sudo command that temporarily concedes you superuser powers on many distributions.
+- The `/usr` directory was where users' home directories were originally kept back in the early days of UNIX. However, now it is `/home`.
+  - These days, `/usr` contains a mish-mash of directories which in turn contain applications, libraries, documentation, wallpapers, icons and a long list of other stuff that need to be shared by applications and services.
+  - You will also find `bin`, `sbin` and `lib` directories in `/usr`. Originally, the `/bin` directory (hanging off of root) would contain very basic commands, like ls, mv and rm; the kind of commands that would come pre-installed in all UNIX/Linux installations, the bare minimum to run and maintain a system.
+  - `/usr/bin` on the other hand would contain stuff the users would install and run to use the system as a work station, things like word processors, web browsers, and other apps.
+  - But many modern Linux distributions just put everything into `/usr/bin` and have `/bin` point to `/usr/bin` just in case erasing it completely would break something.
+  - So, while Debian, Ubuntu and Mint still keep `/bin` and `/usr/bin` (and `/sbin` and `/usr/sbin`) separate; others, like Arch and its derivatives just have one "real" directory for binaries, /usr/bin, and the rest or \*bins are "fake" directories that point to /usr/bin.
+- The `/srv` directory contains data for servers. If you are running a web server from your Linux box, your HTML files for your sites would go into /srv/http (or /srv/www). If you were running an FTP server, your files would go into /srv/ftp.
+- `/sys` is another virtual directory like `/proc` and `/dev` and also contains information from devices connected to your computer.
+- `/tmp` contains temporary files, usually placed there by applications that you are running. The files and directories often (not always) contain data that an application doesn't need right now, but may need later on.
+- `/var` contains things like logs in the /var/log subdirectories. Logs are files that register events that happen on the system. If something fails in the kernel, it will be logged in a file in /var/log; if someone tries to break into your computer from outside, your firewall will also log the attempt here. It also contains spools for tasks. These "tasks" can be the jobs you send to a shared printer when you have to wait because another user is printing a long document, or mail that is waiting to be delivered to users on the system.
