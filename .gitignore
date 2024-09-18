@@ -1,1 +1,68 @@
 .DS_Store
+
+# Compiled object files
+*.o
+*.obj
+output
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Compiled Static libraries
+*.a
+*.lib
+
+# Executable files
+*.exe
+*.out
+*.app
+
+# Debug and Release directories
+/debug/
+/release/
+
+# IDE/Editor specific files
+# CLion
+.idea/
+*.iml
+cmake-build-*/
+
+# Code::Blocks
+*.layout
+*.depend
+
+# Visual Studio
+.vs/
+*.vcxproj*
+*.sln
+
+# Xcode
+*.xcworkspace
+*.xcuserdatad*
+*.xccheckout
+build/
+DerivedData/
+
+# CMake generated files
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+
+# Makefile specific files
+*.d
+*.deps
+
+# Temporary files
+*.tmp
+*.swp
+*.swo
+*~
+
+# Logs
+*.log

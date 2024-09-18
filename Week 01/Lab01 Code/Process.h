@@ -13,6 +13,7 @@ class Process {
         string pid;
         string name;
         int vmrss_kb;
+        int vmsize_kb;
     
     public:
         Process(const string& pid);

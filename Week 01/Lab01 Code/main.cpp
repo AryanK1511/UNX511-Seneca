@@ -1,10 +1,9 @@
-#include "Process.h"
+#include "ProcessManager.h"
 #include <iostream>
 using namespace std;
 
 int main() {
-    Process p("123");
-
-    p.load_details();
+    ProcessManager processManager;
+    processManager.scan_processes();
     return 0;
 }
