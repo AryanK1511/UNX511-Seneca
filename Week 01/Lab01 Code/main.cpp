@@ -3,7 +3,7 @@
 using namespace std;
 
 int main() {
-    ProcessManager processManager;
-    processManager.scan_processes();
-    return 0;
+  ProcessManager processManager;
+  processManager.scan_processes();
+  return 0;
 }
