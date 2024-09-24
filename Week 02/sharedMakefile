@@ -1,0 +1,13 @@
+CC=g++ 
+CFLAGS=-I./libTest
+CFLAGS+=-Wall 
+FILES=sharedLibraryTest.cpp 
+LIBS=-L/usr/lib -lTest 
+ 
+LibTest: $(FILES) 
+	$(CC) $(CFLAGS) $(FILES) -o sharedLibraryTest $(LIBS) 
+ 
+clean: 
+	rm -f *.o sharedLibraryTest
+ 
+all: LibTest
