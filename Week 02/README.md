@@ -174,6 +174,8 @@ This command helps you see which functions are defined and referenced within the
 
 ### Using a static library
 
+You can checkout my `Makefile` to do this [here](./Makefile).
+
 #### Makefile Explanation
 
 ```makefile
@@ -234,3 +236,175 @@ int main() {
 #### Steps to Use Static Libraries
 
 Once you are done with making the static library. Use `make clean all` to make this code as well and then run the executable.
+
+## Explanation of Creating and Using Shared Libraries
+
+In the provided example, the focus is on creating and using **shared libraries**. The process is similar to creating static libraries but with a few key differences. Let's break this down step by step.
+
+### Step 1: Compiling Position Independent Code (`fPIC`)
+
+To create a shared library, you first need to compile your source files into **Position Independent Code (PIC)** using the `-fPIC` option. PIC is required for shared libraries to allow the code to be loaded at different memory addresses in different programs.
+
+#### Example
+
+```bash
+g++ -I -fPIC -Wall -c Conversions.cpp General.cpp Geometry.cpp
+```
+
+- `-I`: Include the directory for header files.
+- `-fPIC`: Compiles position-independent code, which is essential for shared libraries.
+- `-Wall`: Enables all compiler's warning messages.
+- `-c`: Tells the compiler to generate object files (`.o`) instead of executable binaries.
+
+This command will generate the object files `Conversions.o`, `General.o`, and `Geometry.o`.
+
+### Step 2: Creating the Shared Library
+
+The next step is to link these object files into a shared library using the `-shared` option.
+
+#### Example:
+
+```bash
+g++ -shared -o libMath.so Conversions.o General.o Geometry.o
+```
+
+- `-shared`: Tells the compiler to create a shared library.
+- `-o libMath.so`: Specifies the output name of the shared library (`libMath.so`).
+- `Conversions.o General.o Geometry.o`: The object files that will be linked into the shared library.
+
+### Step 3: Installing the Shared Library
+
+Once the shared library (`libMath.so`) is created, it must be placed in a location where the system can find it.
+
+#### Installing to `/usr/lib`:
+
+```bash
+sudo cp libMath.so /usr/lib
+```
+
+- You need **root permissions** (hence the `sudo` command) to place files in `/usr/lib`, where system-wide libraries are stored.
+
+Alternatively, if you store the shared library in a custom location, you need to tell the system where to find it:
+
+```bash
+export LD_LIBRARY_PATH=/path/to/your/library:$LD_LIBRARY_PATH
+sudo ldconfig
+```
+
+- `LD_LIBRARY_PATH`: This environment variable tells the system where to look for shared libraries.
+- `ldconfig`: Updates the system's knowledge of available libraries. This is necessary after adding a new library.
+
+### Step 4: Header Files
+
+Usually, the header files (`*.h`) associated with the shared library are placed in a separate directory, like `/usr/include`, to be easily accessible by programs that need to use the library.
+
+#### Copying Header Files
+
+```bash
+sudo cp *.h /usr/include
+```
+
+This allows other developers or programs to include your library headers with `#include <yourheader.h>`.
+
+### `Makefile` Breakdown
+
+The provided `Makefile` handles both **compiling source files** and **creating a shared library**. You can check out my `Makefile` [here](./MySharedLibrary/Makefile).
+
+#### Variables
+
+```makefile
+CC=g++
+CFLAGS=-I
+CFLAGS+=-fPIC
+CFLAGS+=-Wall
+CFLAGS+=-c
+LIBFLAGS=-shared
+LIBFLAGS+=-o
+FILES=Bye.cpp
+FILES+=Hello.cpp
+OBJFILES=Bye.o
+OBJFILES+=Hello.o
+```
+
+- `CC=g++`: Specifies the compiler.
+- `CFLAGS`: Compiler flags, including:
+  - `-I`: Include path for headers.
+  - `-fPIC`: Required for shared libraries.
+  - `-Wall`: Enables all warnings.
+  - `-c`: Compiles source files into object files.
+- `LIBFLAGS`: Flags used for creating the shared library, including:
+  - `-shared`: Create a shared library.
+  - `-o`: Specify the output file name.
+- `FILES`: Source files to be compiled.
+- `OBJFILES`: Object files generated from the source files.
+
+#### Targets
+
+```makefile
+Test: $(FILES)
+	$(CC) $(CFLAGS) $(FILES)
+```
+
+- The `Test` target compiles the source files (`Bye.cpp` and `Hello.cpp`) into object files (`Bye.o` and `Hello.o`).
+
+```makefile
+lib: $(OBJFILES)
+	$(CC) $(LIBFLAGS) libTest.so $(OBJFILES)
+```
+
+- The `lib` target creates the shared library `libTest.so` from the object files `Bye.o` and `Hello.o`.
+
+```makefile
+install:
+	cp libTest.so /usr/lib
+	cp *.h ../libTest
+```
+
+- The `install` target copies the shared library `libTest.so` to `/usr/lib` and the header files to a directory called `../libTest`.
+
+```makefile
+clean:
+	rm -f *.o *.so
+```
+
+- The `clean` target removes the generated object files and shared library (`*.o`, `*.so`).
+
+```makefile
+all: Test lib
+```
+
+- The `all` target is a convenient way to run both the `Test` and `lib` targets in sequence, compiling the source code and creating the shared library.
+
+### Using the Shared Library in Another Program
+
+Once the shared library is created and installed, you can compile a program that uses this library.
+You can checkout my `Makefile` for this [here](./sharedMakefile).
+
+#### Example `Makefile` for Using the Shared Library
+
+```makefile
+CC=g++
+CFLAGS=-I./libTest
+CFLAGS+=-Wall
+FILES=sharedLibraryTest.cpp
+LIBS=-L/usr/lib -lTest
+
+LibTest: $(FILES)
+	$(CC) $(CFLAGS) $(FILES) -o sharedLibraryTest $(LIBS)
+
+clean:
+	rm -f *.o sharedLibraryTest
+
+all: LibTest
+```
+
+- `CFLAGS=-I./libTest`: Includes the path to your header files.
+- `LIBS=-L/usr/lib -lTest`: Links the shared library `libTest.so` from `/usr/lib`.
+
+To compile and link against the shared library, you would run:
+
+```bash
+make -f YourMakefile clean all
+```
+
+This will create an executable that uses the shared library (`libTest.so`).
