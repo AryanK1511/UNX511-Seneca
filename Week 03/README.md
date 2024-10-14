@@ -465,3 +465,125 @@ Valgrind is a tool for detecting memory management issues in C/C++ programs, suc
 - **`--leak-check=full`**: Detailed memory leak reports.
 - **`--track-origins=yes`**: Identify uninitialized memory sources.
 - **`--log-file`**: Redirect output to a file.
+
+## Overview of `ioctl`
+
+- The `ioctl` system call is used to manipulate the underlying device parameters of special files. It provides a means of sending control commands to devices and modifying their behavior.
+
+- **Prototype**: The basic syntax for `ioctl` in C is:
+
+  ```c
+  int ioctl(int fd, unsigned long request, ...);
+  ```
+
+  - `fd`: A file descriptor for the device or file.
+  - `request`: An operation request code that specifies the action to be performed.
+  - `...`: Optional arguments (depends on the request).
+
+1. **File Descriptor**:
+
+   - Before using `ioctl`, you need to open the device file (e.g., `/dev/something`) using the `open` system call, which returns a file descriptor.
+
+2. **Request Codes**:
+
+   - Each request code is defined by the driver and often follows a naming convention (e.g., `MY_IOCTL_CMD`). Common requests include:
+     - `TIOCGWINSZ`: Get window size for terminal.
+     - `TIOCSPGRP`: Set foreground process group for terminal.
+     - `FIONREAD`: Get the number of bytes available for reading.
+   - Request codes are usually defined in header files (e.g., `<linux/ioctl.h>`).
+   - Read the [documentation](https://man7.org/linux/man-pages/man7/netdevice.7.html) to find the appropriate requests.
+
+3. **Data Types**:
+
+   - The third argument may require a pointer to a structure or variable to pass data between user space and kernel space. This can include:
+
+     - Pointers to structures for retrieving or setting multiple values.
+     - Simple data types (like integers) for single values.
+
+   - You will have to read the docs to understand what to put here.
+
+### Usage
+
+1. **Opening a Device**:
+
+   ```c
+   int fd = open("/dev/mydevice", O_RDWR);
+   if (fd < 0) {
+       perror("Failed to open device");
+       return -1;
+   }
+   ```
+
+2. **Using `ioctl`**:
+
+   ```c
+   int result;
+   struct winsize w;
+   result = ioctl(fd, TIOCGWINSZ, &w); // Get terminal size
+   if (result < 0) {
+       perror("ioctl failed");
+   }
+   printf("Rows: %d, Columns: %d\n", w.ws_row, w.ws_col);
+   ```
+
+3. **Closing a Device**:
+
+   ```c
+   close(fd);
+   ```
+
+### Common Use Cases
+
+- **Device Control**: Adjust settings on devices (e.g., baud rates for serial ports).
+- **Getting/Setting Parameters**: Fetching the status of devices (e.g., reading sensor data).
+- **Communication**: Sending custom commands to the device for specific tasks.
+
+### Error Handling
+
+- On failure, `ioctl` returns `-1` and sets the global variable `errno` to indicate the error. Common error codes include:
+  - `EINVAL`: Invalid request code.
+  - `ENOTTY`: Not a typewriter; the file descriptor is not associated with a terminal.
+  - `ENOTSUP`: Operation not supported.
+
+### Notes on Implementation
+
+- `ioctl` can be considered less portable because the request codes and expected parameters depend on the device driver implementation.
+- It's crucial to check the documentation or source code of the specific device driver for the correct usage of `ioctl` requests.
+
+### Summary
+
+- **`ioctl`** is a powerful system call used for device control and configuration.
+- It operates on file descriptors and allows interaction with device drivers through custom request codes.
+- Proper error handling is essential to manage device communication effectively.
+
+### Example Code Snippet
+
+Here’s a simple example demonstrating how to use `ioctl` to get the window size of a terminal:
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/ioctl.h>
+#include <linux/tty.h>
+
+int main() {
+    int fd = open("/dev/tty", O_RDWR); // Open terminal device
+    if (fd < 0) {
+        perror("Failed to open terminal");
+        return EXIT_FAILURE;
+    }
+
+    struct winsize w;
+    if (ioctl(fd, TIOCGWINSZ, &w) == -1) { // Get window size
+        perror("ioctl failed");
+        close(fd);
+        return EXIT_FAILURE;
+    }
+
+    printf("Rows: %d, Columns: %d\n", w.ws_row, w.ws_col);
+    close(fd); // Close the device
+    return EXIT_SUCCESS;
+}
+```
