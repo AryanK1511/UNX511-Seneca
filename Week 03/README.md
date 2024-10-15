@@ -185,6 +185,115 @@ Access modes refer to the ways in which a program can interact with files or dev
 | Usage          | Size of objects, array indices | I/O operations (size, errors) |
 | Typical Header | `<stddef.h>`                   | `<unistd.h>`                  |
 
+## `mode_t` and File Permissions
+
+In Unix-like operating systems, file permissions are controlled through a data type called `mode_t`. This data type defines the access rights and types of files or directories. The `mode_t` type is typically used in functions that deal with file creation, manipulation, and permission settings, such as `open()`, `chmod()`, and `stat()`.
+
+### Overview of `mode_t`
+
+- **Data Type**: `mode_t` is an unsigned integer that encodes the file permissions and file type information.
+
+- **File Permission Bits**: Each permission bit represents a specific type of access for a file or directory. The permissions are usually divided into three categories: **user**, **group**, and **others**.
+
+### Permission Bits
+
+1. **User Permissions** (Owner)
+
+   - **Read (`S_IRUSR`, value: 0400)**: Permission to read the file.
+   - **Write (`S_IWUSR`, value: 0200)**: Permission to write to the file.
+   - **Execute (`S_IXUSR`, value: 0100)**: Permission to execute the file (if it's executable).
+
+2. **Group Permissions**
+
+   - **Read (`S_IRGRP`, value: 0040)**: Permission to read the file for users in the file's group.
+   - **Write (`S_IWGRP`, value: 0020)**: Permission to write to the file for users in the file's group.
+   - **Execute (`S_IXGRP`, value: 0010)**: Permission to execute the file for users in the file's group.
+
+3. **Others Permissions**
+   - **Read (`S_IROTH`, value: 0004)**: Permission to read the file for all other users.
+   - **Write (`S_IWOTH`, value: 0002)**: Permission to write to the file for all other users.
+   - **Execute (`S_IXOTH`, value: 0001)**: Permission to execute the file for all other users.
+
+### File Type Bits
+
+In addition to permission bits, `mode_t` can also indicate the type of the file:
+
+- **Regular File (`S_IFREG`, value: 0100000)**: A regular file.
+- **Directory (`S_IFDIR`, value: 0040000)**: A directory.
+- **Character Device (`S_IFCHR`, value: 0020000)**: A character device file.
+- **Block Device (`S_IFBLK`, value: 0060000)**: A block device file.
+- **FIFO (named pipe) (`S_IFIFO`, value: 0010000)**: A FIFO file.
+- **Socket (`S_IFSOCK`, value: 0140000)**: A socket file.
+- **Symbolic Link (`S_IFLNK`, value: 0120000)**: A symbolic link.
+
+### Setting Permissions
+
+File permissions can be set using the `chmod` command or programmatically using the `chmod()` function. The permissions can be specified using symbolic (e.g., `u+rwx`) or numeric (octal) representations.
+
+#### Symbolic Representation
+
+- **Add permission**: Use `+`
+- **Remove permission**: Use `-`
+- **Set permission explicitly**: Use `=`
+
+For example:
+
+- `chmod u+x file.txt` adds execute permission for the user.
+- `chmod g-w file.txt` removes write permission for the group.
+- `chmod o=r file.txt` sets read permission for others only.
+
+#### Numeric (Octal) Representation
+
+Permissions can also be represented in octal format, where each digit corresponds to a set of permissions:
+
+- Example: `chmod 755 file.txt`
+  - `7` (user): `rwx` (read, write, execute)
+  - `5` (group): `r-x` (read and execute)
+  - `5` (others): `r-x` (read and execute)
+
+### Checking Permissions
+
+You can check a file's permissions using the `ls -l` command in the terminal. The output will show the permissions in the first column, indicating the file type and access rights:
+
+```bash
+-rwxr-xr-- 1 user group 4096 Oct 14 12:34 file.txt
+```
+
+- The first character indicates the file type (`-` for regular file, `d` for directory, etc.).
+- The next three characters indicate the user permissions, followed by group and others.
+
+### Example of Using `mode_t` in C
+
+Here’s a simple example of how to create a file with specific permissions using the `open()` system call:
+
+```c
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <stdio.h>
+
+int main() {
+    const char *filename = "example.txt";
+
+    // Create a file with read and write permissions for the user, and read permission for group and others
+    mode_t mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
+
+    int fd = open(filename, O_CREAT | O_WRONLY, mode);
+    if (fd == -1) {
+        perror("Error creating file");
+        return 1;
+    }
+
+    // Write some data to the file (optional)
+    const char *data = "Hello, World!";
+    write(fd, data, sizeof(data));
+
+    // Close the file
+    close(fd);
+    return 0;
+}
+```
+
 ## Changing the offset
 
 Changing the offset in a file or data stream typically involves seeking to a specific position before reading from or writing to that location. In C, this is often done using the `lseek()` function for file descriptors or `fseek()` for file pointers. Here are some notes and examples on how to change the offset effectively:
