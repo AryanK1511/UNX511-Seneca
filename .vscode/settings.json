@@ -6,8 +6,5 @@
     "editor.formatOnSave": true
   },
   "editor.tabSize": 2,
-  "editor.insertSpaces": true,
-  "files.associations": {
-    "iostream": "cpp"
-  }
+  "editor.insertSpaces": true
 }
