@@ -15,7 +15,7 @@ Static:
 - Windows: \*.lib
 - Mac and Linux: \*.a
 
-Program utilizes static library at compile time. This happens before running. You take exactly what you need from static library, take all the code and move that into the application. Here, the code now lives in your application in contrast to haveing the code reference to the library. If you are depended on alot of libraries, this will make your application very bg very fast.
+Program utilizes static library at compile time. This happens before running. You take exactly what you need from static library, take all the code and move that into the application. Here, the code now lives in your application in contrast to having the code reference to the library. If you are depended on alot of libraries, this will make your application very bg very fast.
 
 ## Creating a Static Library
 
