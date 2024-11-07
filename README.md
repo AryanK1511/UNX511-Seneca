@@ -10,6 +10,7 @@ A collection of resources and notes from the UNX511 (UNIX Systems Programming) c
 - [Week 04](https://github-pages.senecapolytechnic.ca/unx511/Week4/Week4.html)
 - [Week 05](https://github-pages.senecapolytechnic.ca/unx511/Week5/Week5.html)
 - [Week 06](https://github-pages.senecapolytechnic.ca/unx511/Week6/Week6.html)
+- [Week 08](https://github-pages.senecapolytechnic.ca/unx511/Week8/Week8.html)
 
 ## Author
 
