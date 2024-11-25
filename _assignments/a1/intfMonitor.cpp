@@ -274,10 +274,10 @@ void monitorNetworkInterface(const char *interfaceName, int socket) {
 
 // =========== UTILITY FUNCTIONS ==========
 
-// Handle incoming signals (e.g., SIGTERM)
+// Handle incoming signals
 static void signalHandler(int signal) {
-  if (signal == SIGTERM) {
-    cout << "[intfMonitor.cpp] Received SIGTERM, shutting down" << endl;
+  if (signal == SIGUSR1) {
+    cout << "[intfMonitor.cpp] Shutting down" << endl;
     isMonitoringActive = false;
   }
 }
@@ -293,12 +293,12 @@ int main(int argc, char *argv[]) {
   char networkInterface[maxIfNameLen];
   strncpy(networkInterface, argv[1], maxIfNameLen - 1);
 
-  // Set up signal handler for SIGTERM
+  // Set up signal handler
   struct sigaction sigAction;
   sigAction.sa_handler = signalHandler;
   sigemptyset(&sigAction.sa_mask);
   sigAction.sa_flags = 0;
-  sigaction(SIGTERM, &sigAction, nullptr);
+  sigaction(SIGUSR1, &sigAction, nullptr);
 
   // Ignore SIGINT signal
   struct sigaction ignoreSigAction;

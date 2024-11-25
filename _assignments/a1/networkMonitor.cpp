@@ -224,8 +224,8 @@ void processInterfaceMonitorData(
 
       if (bytesRead > 0) {
         // Successfully read data; print it to the console
-        cout << "[networkMonitor.cpp] Data received from interface monitor ["
-             << i << "]: \n"
+        cout << "[networkMonitor.cpp] Interface monitor [" << i
+             << "] - Data received: \n"
              << buffer << endl;
       } else if (bytesRead == -1) {
         // Error while reading from the socket
@@ -254,18 +254,19 @@ void cleanupResources(
     vector<pid_t> &childProcessIDs) {
   // Terminate child processes gracefully
   for (pid_t pid : childProcessIDs) {
-    cout << "[networkMonitor.cpp] Sending SIGTERM to child process (PID " << pid
-         << ")" << endl;
-    if (kill(pid, SIGTERM) == -1) {
-      cerr << "[networkMonitor.cpp] Failed to send SIGTERM to process " << pid
+    cout
+        << "[networkMonitor.cpp] Sending SIGUSR1 signal to child process (PID: "
+        << pid << ")..." << endl;
+
+    if (kill(pid, SIGUSR1) == -1) {
+      cerr << "[networkMonitor.cpp] Failed to send SIGUSR1 to process " << pid
            << ": " << strerror(errno) << endl;
     }
   }
 
   // Wait for all child processes to terminate
   while (wait(nullptr) > 0) {
-    // Optionally print message about terminated processes
-    cout << "[networkMonitor.cpp] A child process has terminated." << endl;
+    cout << "[networkMonitor.cpp] A child process has exited." << endl;
   }
 
   // Handle monitor sockets
@@ -311,7 +312,7 @@ static void signalHandler(const int signal) {
 int main() {
   // Declare a variable to store the number of interfaces to monitor
   int numInterfaces;
-  cout << "Enter the number of interfaces to monitor: ";
+  cout << "Please specify the number of interfaces to monitor: ";
   cin >> numInterfaces;
 
   // Declare a vector to hold the names of interfaces
@@ -319,7 +320,7 @@ int main() {
 
   // Get the names of the interfaces to monitor from the user
   for (int i = 0; i < numInterfaces; ++i) {
-    cout << "Interface #" << i + 1 << ": ";
+    cout << "Number " << i + 1 << ": ";
     cin >> interfaceNames[i];
   }
 
