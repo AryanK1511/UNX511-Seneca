@@ -11,222 +11,335 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-#define SOCKET_PATH "/tmp/networkMonitor"
-#define BUFFER_SIZE 512
-#define MAX_INTERFACE_NAME_LEN 32
-
 using namespace std;
 
-bool isRunning = true;
+// ========== CONSTANTS ==========
 
-string networkInterfaceStats;
-int socketFileDescriptor = -1;
+// Path for the UNIX socket
+const char *socketPath = "/tmp/networkMonitor";
 
-// Configure network interface flags
-int configureInterfaceFlags(const char *interfaceName, short flagSettings) {
-  struct ifreq interfaceRequest;
+// Buffer size for message communication
+const int bufferSize = 256;
+
+// Maximum interface name length
+const int maxIfNameLen = 32;
+
+// ========== GLOBAL VARIABLES ==========
+
+// Flag to indicate whether monitoring is active
+bool isMonitoringActive = true;
+
+// String to store network interface statistics
+string networkInterfaceStatistics;
+
+// ========== FUNCTION DEFINITIONS ==========
+
+int createSocketForInterface();
+int bringInterfaceUp(const char *interfaceName);
+void collectInterfaceStats(const char *interface, string &interfaceData);
+void monitorNetworkInterface(const char *interfaceName, int socket);
+static void signalHandler(int signal);
+
+// ========== CORE FUNCTIONS ==========
+
+// Create and connect to the UNIX domain socket
+int createSocketForInterface() {
+  // Structure to hold the socket address
+  struct sockaddr_un socketAddr;
+
+  // Create the socket with the UNIX domain and STREAM type
+  int socketFd = socket(AF_UNIX, SOCK_STREAM, 0);
+  if (socketFd < 0) {
+    // If socket creation fails, print error and exit
+    cerr << "[intfMonitor.cpp] Unable to create socket: " << strerror(errno)
+         << endl;
+    exit(EXIT_FAILURE);
+  }
+
+  // Zero out the socket address structure to avoid uninitialized data
+  memset(&socketAddr, 0, sizeof(socketAddr));
+  socketAddr.sun_family = AF_UNIX;
+  strncpy(socketAddr.sun_path, socketPath, sizeof(socketAddr.sun_path) - 1);
+  socketAddr.sun_path[sizeof(socketAddr.sun_path) - 1] = '\0';
+
+  // Attempt to connect the socket to the given address
+  if (connect(socketFd, (struct sockaddr *)&socketAddr, sizeof(socketAddr)) <
+      0) {
+    // If connection fails, print error, close socket, and exit
+    cerr << "[intfMonitor.cpp] Connection failed: " << strerror(errno) << endl;
+    close(socketFd);
+    exit(EXIT_FAILURE);
+  }
+
+  // Return the file descriptor for the connected socket
+  return socketFd;
+}
+
+// Bring up the network interface if it's down
+int bringInterfaceUp(const char *interfaceName) {
+  struct ifreq interfaceRequest; // Structure for storing interface details
+
+  // Zero out the structure to avoid using uninitialized data
   memset(&interfaceRequest, 0, sizeof(interfaceRequest));
+
+  // Copy the provided interface name into the structure (ensuring it's
+  // null-terminated)
   strncpy(interfaceRequest.ifr_name, interfaceName, IFNAMSIZ);
-  interfaceRequest.ifr_flags = flagSettings;
+  interfaceRequest.ifr_name[IFNAMSIZ - 1] = '\0'; // Ensure null termination
 
-  int localSocket = socket(AF_INET, SOCK_DGRAM, 0);
-  if (localSocket < 0) {
-    cerr << "Socket creation failed: " << strerror(errno) << endl;
-    EXIT_FAILURE;
+  // Set the interface flags to bring it up
+  interfaceRequest.ifr_flags = IFF_UP;
+
+  // Create a socket for the ioctl call (use AF_INET for network-related
+  // operations)
+  int socketFd = socket(AF_INET, SOCK_DGRAM, 0);
+  if (socketFd < 0) {
+    // If socket creation fails, print error and return failure
+    cerr << "[intfMonitor.cpp] Socket creation failed: " << strerror(errno)
+         << endl;
+    return EXIT_FAILURE; // Return failure code
   }
 
-  int result = ioctl(localSocket, SIOCSIFFLAGS, &interfaceRequest);
+  // Attempt to bring the interface up using the ioctl system call
+  int result = ioctl(socketFd, SIOCSIFFLAGS, &interfaceRequest);
   if (result < 0) {
-    cerr << "Failed to set flags for interface '" << interfaceName
-         << "': " << strerror(errno) << endl;
-  } else {
-    cout << "Interface '" << interfaceName << "' is now active." << endl;
+    // If ioctl fails, print error with the interface name and return failure
+    cerr << "[intfMonitor.cpp] Failed to bring interface up: '" << interfaceName
+         << "' - " << strerror(errno) << endl;
   }
 
-  close(localSocket);
+  // Close the socket after the operation
+  close(socketFd);
+
+  // Return the result of the ioctl call (0 on success, -1 on failure)
   return result;
 }
 
-// Get all required stats from the interfaces
-void getNetworkInterfaceStats(const char *interface, string &interfaceData) {
+// Collect statistics for the specified network interface
+void collectInterfaceStats(const char *interface, string &interfaceData) {
   string operstate;
-  int carrier_up_count = 0, carrier_down_count = 0;
-  int rx_bytes = 0, rx_dropped = 0, rx_errors = 0, rx_packets = 0;
-  int tx_bytes = 0, tx_dropped = 0, tx_errors = 0, tx_packets = 0;
-  char statPath[BUFFER_SIZE];
+  int carrierUpCount = 0, carrierDownCount = 0;
+  int txBytes = 0, rxBytes = 0;
+  int rxDropped = 0, rxErrors = 0;
+  int txPackets = 0, rxPackets = 0;
+  int txDropped = 0, txErrors = 0;
+  char statPath[bufferSize];
   ifstream infile;
 
-  sprintf(statPath, "/sys/class/net/%s/operstate", interface);
+  // Read interface operational state
+  snprintf(statPath, sizeof(statPath), "/sys/class/net/%s/operstate",
+           interface);
   infile.open(statPath);
   if (infile.is_open()) {
     infile >> operstate;
     infile.close();
   }
 
-  sprintf(statPath, "/sys/class/net/%s/carrier_up_count", interface);
+  // Read carrier up count
+  snprintf(statPath, sizeof(statPath), "/sys/class/net/%s/carrier_up_count",
+           interface);
   infile.open(statPath);
   if (infile.is_open()) {
-    infile >> carrier_up_count;
+    infile >> carrierUpCount;
     infile.close();
   }
 
-  sprintf(statPath, "/sys/class/net/%s/carrier_down_count", interface);
+  // Read carrier down count
+  snprintf(statPath, sizeof(statPath), "/sys/class/net/%s/carrier_down_count",
+           interface);
   infile.open(statPath);
   if (infile.is_open()) {
-    infile >> carrier_up_count;
+    infile >> carrierDownCount;
     infile.close();
   }
 
-  sprintf(statPath, "/sys/class/net/%s/statistics/rx_bytes", interface);
+  // Read transmit bytes
+  snprintf(statPath, sizeof(statPath), "/sys/class/net/%s/statistics/tx_bytes",
+           interface);
   infile.open(statPath);
   if (infile.is_open()) {
-    infile >> rx_bytes;
+    infile >> txBytes;
     infile.close();
   }
 
-  sprintf(statPath, "/sys/class/net/%s/statistics/rx_dropped", interface);
+  // Read receive bytes
+  snprintf(statPath, sizeof(statPath), "/sys/class/net/%s/statistics/rx_bytes",
+           interface);
   infile.open(statPath);
   if (infile.is_open()) {
-    infile >> rx_dropped;
+    infile >> rxBytes;
     infile.close();
   }
 
-  sprintf(statPath, "/sys/class/net/%s/statistics/rx_errors", interface);
+  // Read receive dropped packets
+  snprintf(statPath, sizeof(statPath),
+           "/sys/class/net/%s/statistics/rx_dropped", interface);
   infile.open(statPath);
   if (infile.is_open()) {
-    infile >> rx_errors;
+    infile >> rxDropped;
     infile.close();
   }
 
-  sprintf(statPath, "/sys/class/net/%s/statistics/rx_packets", interface);
+  // Read receive errors
+  snprintf(statPath, sizeof(statPath), "/sys/class/net/%s/statistics/rx_errors",
+           interface);
   infile.open(statPath);
   if (infile.is_open()) {
-    infile >> rx_packets;
+    infile >> rxErrors;
     infile.close();
   }
 
-  sprintf(statPath, "/sys/class/net/%s/statistics/tx_bytes", interface);
+  // Read transmit packets
+  snprintf(statPath, sizeof(statPath),
+           "/sys/class/net/%s/statistics/tx_packets", interface);
   infile.open(statPath);
   if (infile.is_open()) {
-    infile >> tx_bytes;
+    infile >> txPackets;
     infile.close();
   }
 
-  sprintf(statPath, "/sys/class/net/%s/statistics/tx_dropped", interface);
+  // Read transmit dropped packets
+  snprintf(statPath, sizeof(statPath),
+           "/sys/class/net/%s/statistics/tx_dropped", interface);
   infile.open(statPath);
   if (infile.is_open()) {
-    infile >> tx_dropped;
+    infile >> txDropped;
     infile.close();
   }
 
-  sprintf(statPath, "/sys/class/net/%s/statistics/tx_errors", interface);
+  // Read transmit errors
+  snprintf(statPath, sizeof(statPath), "/sys/class/net/%s/statistics/tx_errors",
+           interface);
   infile.open(statPath);
   if (infile.is_open()) {
-    infile >> tx_errors;
+    infile >> txErrors;
     infile.close();
   }
 
-  sprintf(statPath, "/sys/class/net/%s/statistics/tx_packets", interface);
+  // Read receive packets
+  snprintf(statPath, sizeof(statPath),
+           "/sys/class/net/%s/statistics/rx_packets", interface);
   infile.open(statPath);
   if (infile.is_open()) {
-    infile >> tx_packets;
+    infile >> rxPackets;
     infile.close();
   }
 
+  // Check interface state and attempt to bring it up if down
   if (operstate == "down") {
-    configureInterfaceFlags(interface, IFF_UP);
+    cout << "[intfMonitor.cpp] Interface " << interface << " xxxxx DOWN xxxxx"
+         << endl;
+    bringInterfaceUp(interface);
   }
 
-  string tmpInterface = string(interface);
-  string tmpOperstate = string(operstate);
-
-  interfaceData = "Interface: " + tmpInterface + " state: " + tmpOperstate +
-                  " up_count: " + to_string(carrier_up_count) +
-                  " down_count: " + to_string(carrier_down_count) + "\n" +
-                  "rx_bytes: " + to_string(rx_bytes) +
-                  " rx_dropped: " + to_string(rx_dropped) +
-                  " rx_errors: " + to_string(rx_errors) +
-                  " rx_packets: " + to_string(rx_packets) + "\n" +
-                  "tx_bytes: " + to_string(tx_bytes) +
-                  " tx_dropped: " + to_string(tx_dropped) +
-                  " tx_errors: " + to_string(tx_errors) +
-                  " tx_packets: " + to_string(tx_packets) + "\n";
+  // Format the collected statistics
+  interfaceData = "Interface: " + string(interface) + " state: " + operstate +
+                  " up_count: " + to_string(carrierUpCount) +
+                  " down_count: " + to_string(carrierDownCount) + "\n" +
+                  " rx_bytes: " + to_string(rxBytes) +
+                  " rx_dropped: " + to_string(rxDropped) +
+                  " rx_errors: " + to_string(rxErrors) +
+                  " rx_packets: " + to_string(rxPackets) + "\n" +
+                  " tx_bytes: " + to_string(txBytes) +
+                  " tx_dropped: " + to_string(txDropped) +
+                  " tx_errors: " + to_string(txErrors) +
+                  " tx_packets: " + to_string(txPackets) + "\n";
 }
 
-// Handle the main loop
-void monitorInterface(const char *interfaceName, int clientSocket) {
-  char buffer[BUFFER_SIZE];
-  memset(buffer, 0, BUFFER_SIZE);
+// Monitor and send interface statistics
+void monitorNetworkInterface(const char *interfaceName, int socket) {
+  // Buffer to hold the data to be sent
+  char buffer[bufferSize];
 
-  while (isRunning) {
-    // Get and send interface statistics
-    getNetworkInterfaceStats(interfaceName, networkInterfaceStats);
-    strncpy(buffer, networkInterfaceStats.c_str(), BUFFER_SIZE - 1);
+  // Clear the buffer before use
+  memset(buffer, 0, sizeof(buffer));
 
-    if (write(clientSocket, buffer, strlen(buffer)) < 0) {
-      cerr << "Failed to send data: " << strerror(errno) << endl;
-      break;
-    }
+  // Collect network interface statistics (assuming this function is implemented
+  // elsewhere)
+  collectInterfaceStats(interfaceName, networkInterfaceStatistics);
 
-    sleep(1);
+  // Ensure that the networkInterfaceStatistics is properly copied into the
+  // buffer, and make sure not to overflow the buffer
+  // Ensure null termination in case the string is too long
+  strncpy(buffer, networkInterfaceStatistics.c_str(), bufferSize - 1);
+  buffer[bufferSize - 1] = '\0';
+
+  // Send the data over the socket
+  // If the write operation fails, print an error message
+  if (write(socket, buffer, strlen(buffer)) < 0) {
+    cerr << "[intfMonitor.cpp] Failed to send data: " << strerror(errno)
+         << endl;
   }
 }
 
+// =========== UTILITY FUNCTIONS ==========
+
+// Handle incoming signals (e.g., SIGTERM)
+static void signalHandler(int signal) {
+  if (signal == SIGTERM) {
+    cout << "[intfMonitor.cpp] Received SIGTERM, shutting down" << endl;
+    isMonitoringActive = false;
+  }
+}
+
+// ==================== MAIN PROGRAM ====================
 int main(int argc, char *argv[]) {
-  struct sockaddr_un socketAddress;
-  int clientSocket;
-
   if (argc < 2) {
     cerr << "Usage: " << argv[0] << " <network-interface>" << endl;
     return EXIT_FAILURE;
   }
 
-  char networkInterface[MAX_INTERFACE_NAME_LEN];
-  strncpy(networkInterface, argv[1], MAX_INTERFACE_NAME_LEN - 1);
+  // Store the network interface name
+  char networkInterface[maxIfNameLen];
+  strncpy(networkInterface, argv[1], maxIfNameLen - 1);
 
-  // Create interface socket
-  clientSocket = socket(AF_UNIX, SOCK_STREAM, 0);
-  if (clientSocket < 0) {
-    cerr << "Unable to create interface socket: " << strerror(errno) << endl;
-    return EXIT_FAILURE;
-  }
+  // Set up signal handler for SIGTERM
+  struct sigaction sigAction;
+  sigAction.sa_handler = signalHandler;
+  sigemptyset(&sigAction.sa_mask);
+  sigAction.sa_flags = 0;
+  sigaction(SIGTERM, &sigAction, nullptr);
 
-  // Configure address structure
-  struct sockaddr_un serverAddress = {};
-  socketAddress.sun_family = AF_UNIX;
-  strncpy(socketAddress.sun_path, SOCKET_PATH,
-          sizeof(socketAddress.sun_path) - 1);
-
-  if (connect(clientSocket, (struct sockaddr *)&socketAddress,
-              sizeof(socketAddress)) < 0) {
-    cerr << "Connection to Network Monitor failed: " << strerror(errno) << endl;
-    close(clientSocket);
-    return EXIT_FAILURE;
-  }
-
-  write(clientSocket, "Ready", 5);
-
-  char buffer[BUFFER_SIZE];
-  int bytesRead = read(clientSocket, buffer, BUFFER_SIZE - 1);
-  if (bytesRead < 0) {
-    cerr << "Failed to read data from server: " << strerror(errno) << endl;
-    close(clientSocket);
-    return EXIT_FAILURE;
-  }
-
-  buffer[bytesRead] = '\0'; // Null-terminate the string
-
-  if (strcmp(buffer, "Monitor") != 0) {
-    cerr << "Unexpected message received, expected 'monitor', got: " << buffer
+  // Ignore SIGINT signal
+  struct sigaction ignoreSigAction;
+  ignoreSigAction.sa_handler = SIG_IGN;
+  sigemptyset(&ignoreSigAction.sa_mask);
+  ignoreSigAction.sa_flags = 0;
+  if (sigaction(SIGINT, &ignoreSigAction, nullptr) < 0) {
+    cerr << "[intfMonitor.cpp] Failed to block SIGINT: " << strerror(errno)
          << endl;
-    close(clientSocket);
     return EXIT_FAILURE;
   }
 
-  monitorInterface(networkInterface, clientSocket);
+  // Create and initialize socket connection
+  int socketFd = createSocketForInterface();
+  write(socketFd, "ready_to_monitor", 16);
 
-  close(clientSocket);
-  unlink(SOCKET_PATH);
+  // Wait for start monitoring command
+  char buffer[bufferSize];
+  int bytesRead = read(socketFd, buffer, bufferSize - 1);
+  if (bytesRead < 0) {
+    cerr << "[intfMonitor.cpp] Failed to read data: " << strerror(errno)
+         << endl;
+    close(socketFd);
+    return EXIT_FAILURE;
+  }
+  buffer[bytesRead] = '\0';
 
+  // Verify correct start command received
+  if (strcmp(buffer, "start_monitoring") != 0) {
+    cerr << "[intfMonitor.cpp] Unexpected message received: " << buffer << endl;
+    close(socketFd);
+    return EXIT_FAILURE;
+  }
+
+  // Main monitoring loop
+  while (isMonitoringActive) {
+    monitorNetworkInterface(networkInterface, socketFd);
+    sleep(1);
+  }
+
+  // Clean up and exit
+  close(socketFd);
   return EXIT_SUCCESS;
 }
