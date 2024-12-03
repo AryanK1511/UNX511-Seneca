@@ -71,7 +71,7 @@ int main() {
     car4->drive(highwayDistance);
     Log(DEBUG, __FILE__, __func__, __LINE__, "Drove the cars");
     track = (track + 1) % 5 + 1;
-    sleep(2); // Add sleep for 2 seconds in each iteration
+    sleep(1);
   }
 
   // display the results
